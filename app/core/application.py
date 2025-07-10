@@ -7,7 +7,6 @@ from fastapi.templating import Jinja2Templates
 
 from app.config.config import settings
 from app.database.connection import disconnect_from_db, get_database
-from app.database.initialization import create_tables
 from app.exception.exceptions import setup_exception_handlers
 from app.log.logger import get_application_logger
 from app.middleware.middleware import setup_middlewares
@@ -78,26 +77,22 @@ async def _perform_update_check(app: FastAPI):
 async def lifespan(app: FastAPI):
     """
     Manages the application startup and shutdown events.
-    This function ensures a linear, non-concurrent startup sequence.
     """
     logger.info("Application starting up...")
     try:
-        # Step 1: Connect to the database and create the engine.
+        # Step 1: Initialize database connection and create tables.
+        # This is now a single, atomic operation.
         await get_database()
-        logger.info("Database connection established.")
+        logger.info("Database connection and tables initialized.")
 
-        # Step 2: Create database tables.
-        await create_tables()
-        logger.info("Database tables created.")
-
-        # Step 3: Initialize the KeyManager.
+        # Step 2: Initialize the KeyManager.
         await get_key_manager_instance(settings.API_KEYS, settings.VERTEX_API_KEYS)
         logger.info("KeyManager initialized.")
 
-        # Step 4: Perform update check.
+        # Step 3: Perform update check.
         await _perform_update_check(app)
 
-        # Step 5: Start the scheduler.
+        # Step 4: Start the scheduler.
         _start_scheduler()
 
         logger.info("Application startup complete.")
