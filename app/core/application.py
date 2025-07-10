@@ -6,8 +6,8 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from app.config.config import settings
-from app.database.connection import connect_to_db, disconnect_from_db
-from app.database.initialization import initialize_database
+from app.database.connection import disconnect_from_db, get_database
+from app.database.initialization import create_tables
 from app.exception.exceptions import setup_exception_handlers
 from app.log.logger import get_application_logger
 from app.middleware.middleware import setup_middlewares
@@ -37,16 +37,6 @@ def update_template_globals(app: FastAPI, update_info: dict):
 
 
 # --- Helper functions for lifespan ---
-async def _setup_database_and_config(app_settings):
-    """Initializes database, syncs settings, and initializes KeyManager."""
-    await initialize_database()
-    logger.info("Database initialized successfully")
-    # connect_to_db is now implicitly called by get_database, so this is redundant
-    # await connect_to_db() 
-    await get_key_manager_instance(app_settings.API_KEYS, app_settings.VERTEX_API_KEYS)
-    logger.info("Database, config sync, and KeyManager initialized successfully")
-
-
 async def _shutdown_database():
     """Disconnects from the database."""
     await disconnect_from_db()
@@ -88,15 +78,29 @@ async def _perform_update_check(app: FastAPI):
 async def lifespan(app: FastAPI):
     """
     Manages the application startup and shutdown events.
-
-    Args:
-        app: FastAPI application instance.
+    This function ensures a linear, non-concurrent startup sequence.
     """
     logger.info("Application starting up...")
     try:
-        await _setup_database_and_config(settings)
+        # Step 1: Connect to the database and create the engine.
+        await get_database()
+        logger.info("Database connection established.")
+
+        # Step 2: Create database tables.
+        await create_tables()
+        logger.info("Database tables created.")
+
+        # Step 3: Initialize the KeyManager.
+        await get_key_manager_instance(settings.API_KEYS, settings.VERTEX_API_KEYS)
+        logger.info("KeyManager initialized.")
+
+        # Step 4: Perform update check.
         await _perform_update_check(app)
+
+        # Step 5: Start the scheduler.
         _start_scheduler()
+
+        logger.info("Application startup complete.")
 
     except Exception as e:
         logger.critical(
