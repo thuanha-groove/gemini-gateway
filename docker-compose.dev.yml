@@ -2,7 +2,7 @@ volumes:
   mysql_data:
 services:
   gemini-gateway:
-    image: groovetech/gemini-gateway:latest
+    build: .
     container_name: gemini-gateway
     restart: unless-stopped
     ports:
