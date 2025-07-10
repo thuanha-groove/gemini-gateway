@@ -6,7 +6,7 @@ on:
       - "v*" # Triggered when pushing tags starting with "v" (e.g., v1.0.0, v2.1.0)
 
 jobs:
-  update-release-draft:
+  release:
     permissions:
       contents: write
       pull-requests: write
@@ -38,18 +38,52 @@ jobs:
           draft: false
           prerelease: false
 
-      # Step 4: Optional, build zip file
-      - name: Create ZIP file
-        run: |
-          zip -r gemini-balance.zip . -x "*.git*" "*.github*" "*.env*" "logs/*" "tests/*"
+  build-and-publish-docker:
+    needs: release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
 
-      # Step 5: Optional, upload build files
-      - name: Upload Release Asset
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
         with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./gemini-balance.zip # Replace with your build file path
-          asset_name: gemini-balance.zip # Replace with your file name
-          asset_content_type: application/zip
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ secrets.DOCKER_USERNAME }}/gemini-gateway
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=raw,value=latest,enable=true
+          labels: |
+            org.opencontainers.image.description=OpenAI API Compatible Server
+            org.opencontainers.image.source=${{ github.event.repository.html_url }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          file: Dockerfile
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=${{ github.workflow }}
+          cache-to: type=gha,scope=${{ github.workflow }}

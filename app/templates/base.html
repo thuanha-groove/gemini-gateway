@@ -530,45 +530,6 @@
       const versionInfoContainer = document.getElementById(
         "version-info-container"
       );
-
-      async function fetchVersionInfo() {
-        if (!versionInfoContainer) return;
-        versionInfoContainer.innerHTML =
-          '<span class="mx-1">|</span><span class="text-xs text-gray-700">Checking for updates...</span>'; // Initial loading state
-
-        try {
-          const response = await fetch("/api/version/check");
-          if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-          }
-          const data = await response.json();
-
-          let versionHtml = `<span class="mx-1">|</span><span class="text-xs text-gray-800">v${data.current_version}</span>`;
-          if (data.update_available) {
-            versionHtml += `
-                        <span class="mx-1">|</span>
-                        <a href="https://github.com/snailyp/gemini-balance/releases/latest" target="_blank" class="text-yellow-600 hover:text-yellow-800 transition duration-300 animate-pulse">
-                            <i class="fas fa-arrow-up"></i> New version: v${data.latest_version}
-                        </a>`;
-          } else if (data.error_message) {
-            versionHtml += `
-                        <span class="mx-1">|</span>
-                        <span class="text-xs text-red-500" title="${data.error_message}">Update check failed</span>`;
-          } else {
-            versionHtml += `<span class="mx-1">|</span><span class="text-xs text-green-500">Up to date</span>`; // Indicate up-to-date
-          }
-          versionInfoContainer.innerHTML = versionHtml;
-        } catch (error) {
-          console.error("Error fetching version info:", error);
-          versionInfoContainer.innerHTML = `<span class="mx-1">|</span><span class="text-xs text-red-500" title="Could not connect to the server or parse the response">Update check failed</span>`;
-        }
-      }
-
-      // Fetch immediately on load
-      fetchVersionInfo();
-
-      // Fetch periodically (e.g., every hour)
-      setInterval(fetchVersionInfo, 3600000); // 3600000 ms = 1 hour
     </script>
     {% block body_scripts %}{% endblock %}
   </body>

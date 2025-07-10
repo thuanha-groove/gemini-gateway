@@ -109,8 +109,8 @@ class Settings(BaseSettings):
     TIMEZONE: str = "Asia/Shanghai"  # Default timezone
 
     # Github
-    GITHUB_REPO_OWNER: str = "snailyp"
-    GITHUB_REPO_NAME: str = "gemini-balance"
+    GITHUB_REPO_OWNER: str = "thuanha-groove"
+    GITHUB_REPO_NAME: str = "gemini-gateway"
 
     # Logging Configuration
     LOG_LEVEL: str = "INFO"
