@@ -4,6 +4,7 @@ Application configuration module.
 
 import datetime
 import json
+from functools import lru_cache
 from typing import Any, Dict, List, Type
 
 from pydantic import ValidationError, ValidationInfo, field_validator
@@ -132,7 +133,11 @@ class Settings(BaseSettings):
 
 
 # Create a global configuration instance
-settings = Settings()
+@lru_cache()
+def get_settings():
+    return Settings()
+
+settings = get_settings()
 
 
 def _parse_db_value(key: str, db_value: str, target_type: Type) -> Any:

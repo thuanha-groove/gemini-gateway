@@ -41,7 +41,8 @@ async def _setup_database_and_config(app_settings):
     """Initializes database, syncs settings, and initializes KeyManager."""
     await initialize_database()
     logger.info("Database initialized successfully")
-    await connect_to_db()
+    # connect_to_db is now implicitly called by get_database, so this is redundant
+    # await connect_to_db() 
     await get_key_manager_instance(app_settings.API_KEYS, app_settings.VERTEX_API_KEYS)
     logger.info("Database, config sync, and KeyManager initialized successfully")
 
