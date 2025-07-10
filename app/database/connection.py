@@ -19,13 +19,12 @@ logger = get_database_logger()
 # Create the database engine
 # pool_pre_ping=True: Executes a simple "ping" test before getting a connection from the pool to ensure the connection is valid.
 engine = None
-async_session_factory = None
 database = None
 DATABASE_URL = None
 
 def initialize_database():
     settings = get_settings()
-    global engine, async_session_factory, database, DATABASE_URL
+    global engine, database, DATABASE_URL
     if database is not None:
         return
 
@@ -43,52 +42,36 @@ def initialize_database():
         raise ValueError("Unsupported database type. Please set DATABASE_TYPE to 'sqlite' or 'postgres'.")
 
     engine = create_async_engine(DATABASE_URL, pool_pre_ping=True)
-    async_session_factory = sessionmaker(
-        bind=engine, class_=AsyncSession, expire_on_commit=False
-    )
     if settings.DATABASE_TYPE == "sqlite":
         database = Database(DATABASE_URL)
     else:
         database = Database(DATABASE_URL, min_size=5, max_size=20)
 
 
-_db_connection_lock = asyncio.Lock()
-
-async def get_database() -> Database:
+async def connect_to_db():
     """
-    Returns the database instance, initializing and connecting it if necessary.
-    This function is now responsible for creating tables on first connect.
+    Connect to the database and create tables.
     """
     global database
     if database is None:
         initialize_database()
+    
+    if not database.is_connected:
+        logger.info("Database not connected. Connecting now...")
+        try:
+            await database.connect()
+            logger.info(f"Connected to {get_settings().DATABASE_TYPE}")
 
-    # Use a lock to prevent race conditions when connecting
-    async with _db_connection_lock:
-        if not database.is_connected:
-            logger.info("Database not connected. Connecting now...")
-            try:
-                await database.connect()
-                logger.info(f"Connected to {get_settings().DATABASE_TYPE}")
+            # --- Create tables immediately after first connect ---
+            logger.info("Creating database tables...")
+            async with engine.begin() as conn:
+                # Use the imported Base's metadata
+                await conn.run_sync(Base.metadata.create_all)
+            logger.info("Database tables created successfully.")
 
-                # --- Create tables immediately after first connect ---
-                logger.info("Creating database tables...")
-                async with engine.begin() as conn:
-                    # Use the imported Base's metadata
-                    await conn.run_sync(Base.metadata.create_all)
-                logger.info("Database tables created successfully.")
-
-            except Exception as e:
-                logger.error(f"Failed to connect to database or create tables: {str(e)}")
-                raise
-    return database
-
-
-async def connect_to_db():
-    """
-    Connect to the database.
-    """
-    await get_database()
+        except Exception as e:
+            logger.error(f"Failed to connect to database or create tables: {str(e)}")
+            raise
 
 
 async def disconnect_from_db():
@@ -103,3 +86,15 @@ async def disconnect_from_db():
             logger.info(f"Disconnected from {settings.DATABASE_TYPE}")
         except Exception as e:
             logger.error(f"Failed to disconnect from database: {str(e)}")
+
+
+async def get_db() -> Database:
+    """
+    FastAPI dependency to get a database connection.
+    """
+    global database
+    if not database or not database.is_connected:
+        # This should not happen in a properly configured application
+        # where connect_to_db is called on startup.
+        await connect_to_db()
+    return database

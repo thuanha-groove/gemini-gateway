@@ -5,8 +5,8 @@ Service for request log operations.
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import delete
+from databases import Database
 
-from app.database.connection import database
 from app.config.config import settings
 from app.database.models import RequestLog
 from app.log.logger import get_request_log_logger
@@ -14,9 +14,12 @@ from app.log.logger import get_request_log_logger
 logger = get_request_log_logger()
 
 
-async def delete_old_request_logs_task():
+async def delete_old_request_logs(db: Database):
     """
     Periodically delete old request logs.
+    
+    Args:
+        db: The database connection.
     """
     if not settings.AUTO_DELETE_REQUEST_LOGS_ENABLED:
         logger.info(
@@ -34,13 +37,9 @@ async def delete_old_request_logs_task():
 
         query = delete(RequestLog).where(RequestLog.request_time < cutoff_date)
 
-        if not database.is_connected:
-            logger.info("Connecting to database for request log deletion.")
-            await database.connect()
-
-        result = await database.execute(query)
+        await db.execute(query)
         logger.info(
-            f"Request logs older than {cutoff_date} potentially deleted. Rows affected: {result.rowcount if result else 'N/A'}"
+            f"Request logs older than {cutoff_date} were targeted for deletion."
         )
 
     except Exception as e:

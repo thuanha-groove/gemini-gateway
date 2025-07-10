@@ -1,12 +1,16 @@
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from databases import Database
 
 from app.config.config import settings
+from app.database.connection import DATABASE_URL, initialize_database
 from app.domain.gemini_models import GeminiContent, GeminiRequest
 from app.log.logger import Logger
 from app.service.chat.gemini_chat_service import GeminiChatService
-from app.service.error_log.error_log_service import delete_old_error_logs
+from app.service.error_log.error_log_service import \
+    delete_old_error_logs as service_delete_old_error_logs
 from app.service.key.key_manager import get_key_manager_instance
-from app.service.request_log.request_log_service import delete_old_request_logs_task
+from app.service.request_log.request_log_service import \
+    delete_old_request_logs as service_delete_old_request_logs
 
 logger = Logger.setup_logger("scheduler")
 
@@ -19,25 +23,19 @@ async def check_failed_keys():
     logger.info("Starting scheduled check for failed API keys...")
     try:
         key_manager = await get_key_manager_instance()
-        # Ensure KeyManager is initialized
         if not key_manager or not hasattr(key_manager, "key_failure_counts"):
             logger.warning(
                 "KeyManager instance not available or not initialized. Skipping check."
             )
             return
 
-        # Create a GeminiChatService instance for validation
-        # Note: An instance is created directly here, not through dependency injection, as this is a background task
         chat_service = GeminiChatService(settings.BASE_URL, key_manager)
-
-        # Get the list of keys to check (failure count > 0)
         keys_to_check = []
-        async with key_manager.failure_count_lock:  # Lock is required to access shared data
-            # Create a copy to avoid modifying the dictionary while iterating
+        async with key_manager.failure_count_lock:
             failure_counts_copy = key_manager.key_failure_counts.copy()
             keys_to_check = [
                 key for key, count in failure_counts_copy.items() if count > 0
-            ]  # Check all keys with a failure count > 0
+            ]
 
         if not keys_to_check:
             logger.info("No keys with failure count > 0 found. Skipping verification.")
@@ -48,18 +46,11 @@ async def check_failed_keys():
         )
 
         for key in keys_to_check:
-            # Hide part of the key for logging
             log_key = f"{key[:4]}...{key[-4:]}" if len(key) > 8 else key
             logger.info(f"Verifying key: {log_key}...")
             try:
-                # Construct a test request
                 gemini_request = GeminiRequest(
-                    contents=[
-                        GeminiContent(
-                            role="user",
-                            parts=[{"text": "hi"}],
-                        )
-                    ]
+                    contents=[GeminiContent(role="user", parts=[{"text": "hi"}])]
                 )
                 await chat_service.generate_content(
                     settings.TEST_MODEL, gemini_request, key
@@ -72,9 +63,7 @@ async def check_failed_keys():
                 logger.warning(
                     f"Key {log_key} verification failed: {str(e)}. Incrementing failure count."
                 )
-                # Directly manipulate the counter, requires a lock
                 async with key_manager.failure_count_lock:
-                    # Re-check if the key exists and its failure count is not at max
                     if (
                         key in key_manager.key_failure_counts
                         and key_manager.key_failure_counts[key]
@@ -95,10 +84,58 @@ async def check_failed_keys():
         )
 
 
+async def run_delete_old_error_logs_task():
+    """
+    Wrapper task to manage DB connection for deleting old error logs.
+    This ensures that the background task has its own database connection.
+    """
+    logger.info("Running scheduled task: delete_old_error_logs.")
+    initialize_database()
+    if not DATABASE_URL:
+        logger.error("DATABASE_URL not configured. Skipping scheduled task.")
+        return
+
+    db = Database(DATABASE_URL)
+    try:
+        await db.connect()
+        await service_delete_old_error_logs(db)
+    except Exception as e:
+        logger.error(
+            f"Error in scheduled task 'delete_old_error_logs': {e}", exc_info=True
+        )
+    finally:
+        if db.is_connected:
+            await db.disconnect()
+    logger.info("Finished scheduled task: delete_old_error_logs.")
+
+
+async def run_delete_old_request_logs_task():
+    """
+    Wrapper task to manage DB connection for deleting old request logs.
+    """
+    logger.info("Running scheduled task: delete_old_request_logs.")
+    initialize_database()
+    if not DATABASE_URL:
+        logger.error("DATABASE_URL not configured. Skipping scheduled task.")
+        return
+
+    db = Database(DATABASE_URL)
+    try:
+        await db.connect()
+        await service_delete_old_request_logs(db)
+    except Exception as e:
+        logger.error(
+            f"Error in scheduled task 'delete_old_request_logs': {e}", exc_info=True
+        )
+    finally:
+        if db.is_connected:
+            await db.disconnect()
+    logger.info("Finished scheduled task: delete_old_request_logs.")
+
+
 def setup_scheduler():
     """Sets up and starts APScheduler"""
-    scheduler = AsyncIOScheduler(timezone=str(settings.TIMEZONE))  # Read timezone from config
-    # Add a scheduled task to check failed keys
+    scheduler = AsyncIOScheduler(timezone=str(settings.TIMEZONE))
     scheduler.add_job(
         check_failed_keys,
         "interval",
@@ -110,9 +147,8 @@ def setup_scheduler():
         f"Key check job scheduled to run every {settings.CHECK_INTERVAL_HOURS} hour(s)."
     )
 
-    # New: Add a scheduled task to auto-delete error logs, runs daily at 3:00 AM
     scheduler.add_job(
-        delete_old_error_logs,
+        run_delete_old_error_logs_task,
         "cron",
         hour=3,
         minute=0,
@@ -121,9 +157,8 @@ def setup_scheduler():
     )
     logger.info("Auto-delete error logs job scheduled to run daily at 3:00 AM.")
 
-    # New: Add a scheduled task to auto-delete request logs, runs daily at 3:05 AM
     scheduler.add_job(
-        delete_old_request_logs_task,
+        run_delete_old_request_logs_task,
         "cron",
         hour=3,
         minute=5,
@@ -139,7 +174,6 @@ def setup_scheduler():
     return scheduler
 
 
-# A global scheduler instance can be added here to be gracefully stopped when the application closes
 scheduler_instance = None
 
 
@@ -148,7 +182,8 @@ def start_scheduler():
     if scheduler_instance is None or not scheduler_instance.running:
         logger.info("Starting scheduler...")
         scheduler_instance = setup_scheduler()
-    logger.info("Scheduler is already running.")
+    else:
+        logger.info("Scheduler is already running.")
 
 
 def stop_scheduler():

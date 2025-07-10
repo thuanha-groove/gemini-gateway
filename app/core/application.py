@@ -6,7 +6,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from app.config.config import settings
-from app.database.connection import disconnect_from_db, get_database
+from app.database.connection import connect_to_db, disconnect_from_db
 from app.exception.exceptions import setup_exception_handlers
 from app.log.logger import get_application_logger
 from app.middleware.middleware import setup_middlewares
@@ -81,8 +81,7 @@ async def lifespan(app: FastAPI):
     logger.info("Application starting up...")
     try:
         # Step 1: Initialize database connection and create tables.
-        # This is now a single, atomic operation.
-        await get_database()
+        await connect_to_db()
         logger.info("Database connection and tables initialized.")
 
         # Step 2: Initialize the KeyManager.
@@ -106,7 +105,7 @@ async def lifespan(app: FastAPI):
 
     logger.info("Application shutting down...")
     _stop_scheduler()
-    await _shutdown_database()
+    await disconnect_from_db()
 
 
 def create_app() -> FastAPI:
