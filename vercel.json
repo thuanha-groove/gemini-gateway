@@ -18,8 +18,8 @@
   ],
   "env": {
     "DATABASE_TYPE": "postgres",
-    "POSTGRES_URL": "@postgres_url",
     "API_KEYS": "[]",
+    "ALLOWED_TOKENS": "[]",
     "VERTEX_API_KEYS": "[]",
     "VERTEX_EXPRESS_BASE_URL": "https://aiplatform.googleapis.com/v1beta1/publishers/google",
     "TEST_MODEL": "gemini-1.5-flash",

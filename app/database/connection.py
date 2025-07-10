@@ -30,10 +30,33 @@ else:
 
 # Create the database engine
 # pool_pre_ping=True: Executes a simple "ping" test before getting a connection from the pool to ensure the connection is valid.
-engine = create_async_engine(DATABASE_URL, pool_pre_ping=True)
-async_session_factory = sessionmaker(
-    bind=engine, class_=AsyncSession, expire_on_commit=False
-)
+engine = None
+async_session_factory = None
+database = None
+
+def initialize_database():
+    global engine, async_session_factory, database, DATABASE_URL
+    if settings.POSTGRES_URL:
+        DATABASE_URL = settings.POSTGRES_URL.replace("postgres://", "postgresql+asyncpg://")
+    elif settings.DATABASE_TYPE == "sqlite":
+        # Ensure the data directory exists
+        data_dir = Path("data")
+        data_dir.mkdir(exist_ok=True)
+        db_path = data_dir / settings.SQLITE_DATABASE
+        DATABASE_URL = f"sqlite:///{db_path}"
+    elif settings.DATABASE_TYPE == "postgres":
+        DATABASE_URL = f"postgresql+asyncpg://{settings.POSTGRES_USER}:{quote_plus(settings.POSTGRES_PASSWORD)}@{settings.POSTGRES_HOST}:{settings.POSTGRES_PORT}/{settings.POSTGRES_DB}"
+    else:
+        raise ValueError("Unsupported database type. Please set DATABASE_TYPE to 'sqlite' or 'postgres'.")
+
+    engine = create_async_engine(DATABASE_URL, pool_pre_ping=True)
+    async_session_factory = sessionmaker(
+        bind=engine, class_=AsyncSession, expire_on_commit=False
+    )
+    if settings.DATABASE_TYPE == "sqlite":
+        database = Database(DATABASE_URL)
+    else:
+        database = Database(DATABASE_URL, min_size=5, max_size=20)
 
 # Create a metadata object
 metadata = MetaData()
@@ -41,21 +64,11 @@ metadata = MetaData()
 # Create a base class
 Base = declarative_base(metadata=metadata)
 
-# Create a database connection pool and configure its parameters; connection pool is not used in SQLite.
-# min_size/max_size: The minimum/maximum number of connections in the connection pool.
-# pool_recycle=1800: The maximum number of seconds a connection can exist in the pool (lifecycle).
-#                    Set to 1800 seconds (30 minutes) to ensure connections are recycled before the MySQL default wait_timeout (usually 8 hours) or other network timeouts.
-#                    If you encounter connection failures, you can try lowering this value to be less than the actual wait_timeout or network timeout.
-# The databases library automatically handles reconnection attempts after a connection becomes invalid.
-if settings.DATABASE_TYPE == "sqlite":
-    database = Database(DATABASE_URL)
-else:
-    database = Database(DATABASE_URL, min_size=5, max_size=20)
-
 async def connect_to_db():
     """
     Connect to the database.
     """
+    initialize_database()
     try:
         await database.connect()
         logger.info(f"Connected to {settings.DATABASE_TYPE}")

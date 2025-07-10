@@ -47,13 +47,15 @@ class Settings(BaseSettings):
     def validate_postgres_config(cls, v: Any, info: ValidationInfo) -> Any:
         if info.data.get("POSTGRES_URL"):
             return v
-        if info.data.get("DATABASE_TYPE") == "postgres" and (v is None or v == ""):
-            raise ValueError("PostgreSQL configuration is required when DATABASE_TYPE is 'postgres'")
+        # Defer validation to runtime
+        if info.context and info.context.get("runtime"):
+            if info.data.get("DATABASE_TYPE") == "postgres" and (v is None or v == ""):
+                raise ValueError("PostgreSQL configuration is required when DATABASE_TYPE is 'postgres'")
         return v
 
     # API Related Configuration
-    API_KEYS: List[str]
-    ALLOWED_TOKENS: List[str]
+    API_KEYS: List[str] = []
+    ALLOWED_TOKENS: List[str] = []
     BASE_URL: str = f"https://generativelanguage.googleapis.com/{API_VERSION}"
     GEMINI_GATEWAY_AUTH_TOKEN: str = ""
     MAX_FAILURES: int = 3
