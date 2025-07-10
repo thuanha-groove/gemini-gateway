@@ -1,5 +1,5 @@
 volumes:
-  mysql_data:
+  postgres_data:
 services:
   gemini-gateway:
     image: groovetech/gemini-gateway:latest
@@ -10,7 +10,7 @@ services:
     env_file:
       - .env
     depends_on:
-      mysql:
+      postgres:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import requests; exit(0) if requests.get('http://localhost:8000/health').status_code == 200 else exit(1)\""]
@@ -18,22 +18,21 @@ services:
       timeout: 5s
       retries: 3
       start_period: 10s
-  mysql:
-    image: mysql:8
-    container_name: gemini-gateway-mysql
+  postgres:
+    image: postgres:15
+    container_name: gemini-gateway-postgres
     restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: your_root_password
-      MYSQL_DATABASE: ${MYSQL_DATABASE}
-      MYSQL_USER: ${MYSQL_USER}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     # ports:
-    #   - "3306:3306"
+    #   - "5432:5432"
     volumes:
-      - mysql_data:/var/lib/mysql
+      - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1"]
-      interval: 10s # Check every 10 seconds
-      timeout: 5s   # Timeout for each check is 5 seconds
-      retries: 3    # Mark as unhealthy after 3 failed retries
-      start_period: 30s # Wait 30 seconds after container starts before first health check
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s

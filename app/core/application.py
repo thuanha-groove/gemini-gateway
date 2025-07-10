@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from app.config.config import settings, sync_initial_settings
+from app.config.config import settings
 from app.database.connection import connect_to_db, disconnect_from_db
 from app.database.initialization import initialize_database
 from app.exception.exceptions import setup_exception_handlers
@@ -39,10 +39,9 @@ def update_template_globals(app: FastAPI, update_info: dict):
 # --- Helper functions for lifespan ---
 async def _setup_database_and_config(app_settings):
     """Initializes database, syncs settings, and initializes KeyManager."""
-    initialize_database()
+    await initialize_database()
     logger.info("Database initialized successfully")
     await connect_to_db()
-    await sync_initial_settings()
     await get_key_manager_instance(app_settings.API_KEYS, app_settings.VERTEX_API_KEYS)
     logger.info("Database, config sync, and KeyManager initialized successfully")
 

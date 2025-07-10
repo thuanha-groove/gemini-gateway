@@ -4,8 +4,10 @@ Database connection pool module.
 from pathlib import Path
 from urllib.parse import quote_plus
 from databases import Database
-from sqlalchemy import create_engine, MetaData
+from sqlalchemy import MetaData
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
 
 from app.config.config import settings
 from app.log.logger import get_database_logger
@@ -13,23 +15,25 @@ from app.log.logger import get_database_logger
 logger = get_database_logger()
 
 # Database URL
-if settings.DATABASE_TYPE == "sqlite":
+if settings.POSTGRES_URL:
+    DATABASE_URL = settings.POSTGRES_URL.replace("postgres://", "postgresql+asyncpg://")
+elif settings.DATABASE_TYPE == "sqlite":
     # Ensure the data directory exists
     data_dir = Path("data")
     data_dir.mkdir(exist_ok=True)
     db_path = data_dir / settings.SQLITE_DATABASE
     DATABASE_URL = f"sqlite:///{db_path}"
-elif settings.DATABASE_TYPE == "mysql":
-    if settings.MYSQL_SOCKET:
-        DATABASE_URL = f"mysql+pymysql://{settings.MYSQL_USER}:{quote_plus(settings.MYSQL_PASSWORD)}@/{settings.MYSQL_DATABASE}?unix_socket={settings.MYSQL_SOCKET}"
-    else:
-        DATABASE_URL = f"mysql+pymysql://{settings.MYSQL_USER}:{quote_plus(settings.MYSQL_PASSWORD)}@{settings.MYSQL_HOST}:{settings.MYSQL_PORT}/{settings.MYSQL_DATABASE}"
+elif settings.DATABASE_TYPE == "postgres":
+    DATABASE_URL = f"postgresql+asyncpg://{settings.POSTGRES_USER}:{quote_plus(settings.POSTGRES_PASSWORD)}@{settings.POSTGRES_HOST}:{settings.POSTGRES_PORT}/{settings.POSTGRES_DB}"
 else:
-    raise ValueError("Unsupported database type. Please set DATABASE_TYPE to 'sqlite' or 'mysql'.")
+    raise ValueError("Unsupported database type. Please set DATABASE_TYPE to 'sqlite' or 'postgres'.")
 
 # Create the database engine
 # pool_pre_ping=True: Executes a simple "ping" test before getting a connection from the pool to ensure the connection is valid.
-engine = create_engine(DATABASE_URL, pool_pre_ping=True)
+engine = create_async_engine(DATABASE_URL, pool_pre_ping=True)
+async_session_factory = sessionmaker(
+    bind=engine, class_=AsyncSession, expire_on_commit=False
+)
 
 # Create a metadata object
 metadata = MetaData()
@@ -46,7 +50,7 @@ Base = declarative_base(metadata=metadata)
 if settings.DATABASE_TYPE == "sqlite":
     database = Database(DATABASE_URL)
 else:
-    database = Database(DATABASE_URL, min_size=5, max_size=20, pool_recycle=1800)
+    database = Database(DATABASE_URL, min_size=5, max_size=20)
 
 async def connect_to_db():
     """

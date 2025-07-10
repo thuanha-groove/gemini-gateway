@@ -10,11 +10,10 @@ google-genai
 jinja2
 python-multipart
 cryptography
-pymysql
 sqlalchemy
-aiomysql
 aiosqlite
 databases
 python-dotenv
 apscheduler
 packaging
+asyncpg
