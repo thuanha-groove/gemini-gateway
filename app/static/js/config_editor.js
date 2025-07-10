@@ -270,7 +270,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
   // Authentication token generation button
   const generateAuthTokenBtn = document.getElementById("generateAuthTokenBtn");
-  const authTokenInput = document.getElementById("AUTH_TOKEN");
+  const authTokenInput = document.getElementById("GEMINI_GATEWAY_AUTH_TOKEN");
   if (generateAuthTokenBtn && authTokenInput) {
     generateAuthTokenBtn.addEventListener("click", function () {
       const newToken = generateRandomToken(); // Assuming generateRandomToken is defined elsewhere

@@ -24,7 +24,7 @@
     "MYSQL_DATABASE": "$PLANETSCALE_DB",
     "API_KEYS": "@api_keys",
     "ALLOWED_TOKENS": "@allowed_tokens",
-    "AUTH_TOKEN": "@auth_token",
+    "GEMINI_GATEWAY_AUTH_TOKEN": "@gemini_gateway_auth_token",
     "VERTEX_API_KEYS": "@vertex_api_keys",
     "VERTEX_EXPRESS_BASE_URL": "https://aiplatform.googleapis.com/v1beta1/publishers/google",
     "TEST_MODEL": "gemini-1.5-flash",

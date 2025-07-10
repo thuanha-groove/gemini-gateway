@@ -9,13 +9,13 @@ logger = get_security_logger()
 
 
 def verify_auth_token(token: str) -> bool:
-    return token == settings.AUTH_TOKEN
+    return token == settings.GEMINI_GATEWAY_AUTH_TOKEN
 
 
 class SecurityService:
 
     async def verify_key(self, key: str):
-        if key not in settings.ALLOWED_TOKENS and key != settings.AUTH_TOKEN:
+        if key not in settings.ALLOWED_TOKENS and key != settings.GEMINI_GATEWAY_AUTH_TOKEN:
             logger.error("Invalid key")
             raise HTTPException(status_code=401, detail="Invalid key")
         return key
@@ -34,7 +34,7 @@ class SecurityService:
             )
 
         token = authorization.replace("Bearer ", "")
-        if token not in settings.ALLOWED_TOKENS and token != settings.AUTH_TOKEN:
+        if token not in settings.ALLOWED_TOKENS and token != settings.GEMINI_GATEWAY_AUTH_TOKEN:
             logger.error("Invalid token")
             raise HTTPException(status_code=401, detail="Invalid token")
 
@@ -50,7 +50,7 @@ class SecurityService:
 
         if (
             x_goog_api_key not in settings.ALLOWED_TOKENS
-            and x_goog_api_key != settings.AUTH_TOKEN
+            and x_goog_api_key != settings.GEMINI_GATEWAY_AUTH_TOKEN
         ):
             logger.error("Invalid x-goog-api-key")
             raise HTTPException(status_code=401, detail="Invalid x-goog-api-key")
@@ -64,7 +64,7 @@ class SecurityService:
             logger.error("Missing auth_token header")
             raise HTTPException(status_code=401, detail="Missing auth_token header")
         token = authorization.replace("Bearer ", "")
-        if token != settings.AUTH_TOKEN:
+        if token != settings.GEMINI_GATEWAY_AUTH_TOKEN:
             logger.error("Invalid auth_token")
             raise HTTPException(status_code=401, detail="Invalid auth_token")
 
@@ -75,7 +75,7 @@ class SecurityService:
     ) -> str:
         """Validate the key in the URL or the x-goog-api-key in the header"""
         # If the key in the URL is valid, return it directly
-        if key in settings.ALLOWED_TOKENS or key == settings.AUTH_TOKEN:
+        if key in settings.ALLOWED_TOKENS or key == settings.GEMINI_GATEWAY_AUTH_TOKEN:
             return key
         
         # Otherwise, check the x-goog-api-key in the header
@@ -83,7 +83,7 @@ class SecurityService:
             logger.error("Invalid key and missing x-goog-api-key header")
             raise HTTPException(status_code=401, detail="Invalid key and missing x-goog-api-key header")
         
-        if x_goog_api_key not in settings.ALLOWED_TOKENS and x_goog_api_key != settings.AUTH_TOKEN:
+        if x_goog_api_key not in settings.ALLOWED_TOKENS and x_goog_api_key != settings.GEMINI_GATEWAY_AUTH_TOKEN:
             logger.error("Invalid key and invalid x-goog-api-key")
             raise HTTPException(status_code=401, detail="Invalid key and invalid x-goog-api-key")
         

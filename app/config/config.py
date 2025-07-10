@@ -54,7 +54,7 @@ class Settings(BaseSettings):
     API_KEYS: List[str]
     ALLOWED_TOKENS: List[str]
     BASE_URL: str = f"https://generativelanguage.googleapis.com/{API_VERSION}"
-    AUTH_TOKEN: str = ""
+    GEMINI_GATEWAY_AUTH_TOKEN: str = ""
     MAX_FAILURES: int = 3
     TEST_MODEL: str = DEFAULT_MODEL
     TIME_OUT: int = DEFAULT_TIMEOUT
@@ -123,9 +123,9 @@ class Settings(BaseSettings):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        # Set default AUTH_TOKEN (if not provided)
-        if not self.AUTH_TOKEN and self.ALLOWED_TOKENS:
-            self.AUTH_TOKEN = self.ALLOWED_TOKENS[0]
+        # Set default GEMINI_GATEWAY_AUTH_TOKEN (if not provided)
+        if not self.GEMINI_GATEWAY_AUTH_TOKEN and self.ALLOWED_TOKENS:
+            self.GEMINI_GATEWAY_AUTH_TOKEN = self.ALLOWED_TOKENS[0]
 
 
 # Create a global configuration instance
