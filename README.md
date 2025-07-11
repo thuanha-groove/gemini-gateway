@@ -40,21 +40,53 @@ app/
 ## 🏛️ Architecture
 
 ```mermaid
+---
+config:
+  look: neo
+  theme: default
+  layout: elk
+---
 graph TD
-    Client([Client]) --> |API Request| Gateway{Gemini Gateway};
+    Client([Client]) --> |API Request| Gateway;
 
     subgraph Gateway
-        Middleware --> Router;
-        Router --> |Request| Service;
-        Service --> |Get Key| KeyManager;
-        KeyManager --> |Fetch/Update Keys| Database[(Database)];
-        Service --> |Proxy Request| ExternalAPI[External Gemini/OpenAI API];
-        Service --> |Format Response| ResponseHandler;
-        ResponseHandler --> |Stream/JSON| Client;
+        direction LR
+        
+        subgraph "Request Flow"
+            direction TB
+            Middleware(Middleware) --> Router{Router};
+            Router -->|Gemini/OpenAI Routes| ChatService(Chat/Embedding Service);
+            Router -->|Image Routes| ImageService(Image Service);
+            Router -->|Admin Routes| AdminService(Admin Services);
+        end
+
+        subgraph "Core Logic"
+            direction TB
+            ChatService --> KeyManager{Key Manager};
+            ImageService --> KeyManager;
+            AdminService --> KeyManager;
+            KeyManager -->|Read/Write| Database[(Database)];
+            Scheduler(Scheduler) -->|Check Keys| KeyManager;
+        end
+
+        subgraph "External Communication"
+            direction TB
+            ChatService --> |Proxy Request| ExternalAPI[External Gemini/OpenAI API];
+            ImageService --> |Proxy Request| ExternalAPI;
+            ImageService --> |Upload| ImageHosting[Image Hosting];
+        end
+
+        subgraph "Response Flow"
+            direction TB
+            ChatService --> ResponseHandler(Response Handler);
+            ImageService --> ResponseHandler;
+            ResponseHandler --> |Stream/JSON| Client;
+        end
     end
 
     style Client fill:#d4fcd7
     style ExternalAPI fill:#fcd4d4
+    style ImageHosting fill:#fcd4d4
     style Database fill:#d4e4fc
 ```
 
