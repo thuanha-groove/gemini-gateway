@@ -3,11 +3,9 @@ Database connection pool module.
 """
 import asyncio
 from pathlib import Path
-from urllib.parse import quote_plus
+from urllib.parse import quote_plus, urlparse, urlunparse, parse_qs, urlencode
 from databases import Database
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-from sqlalchemy.orm import sessionmaker
-
+from sqlalchemy.ext.asyncio import create_async_engine
 from app.config.config import get_settings
 from app.log.logger import get_database_logger
 from app.database.base import Base
@@ -29,7 +27,25 @@ def initialize_database():
         return
 
     if settings.POSTGRES_URL:
-        DATABASE_URL = settings.POSTGRES_URL.replace("postgres://", "postgresql+asyncpg://")
+        # Parse the URL to handle SSL mode correctly for asyncpg
+        parsed_url = urlparse(settings.POSTGRES_URL)
+        query_params = parse_qs(parsed_url.query)
+        
+        if 'sslmode' in query_params:
+            # asyncpg uses 'ssl' parameter, not 'sslmode'.
+            # The value of sslmode is transferred to the ssl parameter.
+            ssl_value = query_params.pop('sslmode')[0]
+            query_params['ssl'] = ssl_value
+        
+        if 'supa' in query_params:
+            query_params.pop('supa')
+            
+        # Rebuild the URL with the modified query string
+        new_query = urlencode(query_params, doseq=True)
+        # Replace scheme for asyncpg
+        db_url_obj = parsed_url._replace(scheme='postgresql+asyncpg', query=new_query)
+        DATABASE_URL = urlunparse(db_url_obj)
+        
     elif settings.DATABASE_TYPE == "sqlite":
         # Ensure the data directory exists
         data_dir = Path("data")
@@ -52,7 +68,7 @@ async def connect_to_db():
     """
     Connect to the database and create tables.
     """
-    global database
+    global database, engine
     if database is None:
         initialize_database()
     
@@ -98,3 +114,5 @@ async def get_db() -> Database:
         # where connect_to_db is called on startup.
         await connect_to_db()
     return database
+
+initialize_database()

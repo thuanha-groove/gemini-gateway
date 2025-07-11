@@ -6,6 +6,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from app.config.config import settings
+from app.database.session import get_session
 from app.database.connection import connect_to_db, disconnect_from_db
 from app.exception.exceptions import setup_exception_handlers
 from app.log.logger import get_application_logger
@@ -39,6 +40,9 @@ def update_template_globals(app: FastAPI, update_info: dict):
 async def _shutdown_database():
     """Disconnects from the database."""
     await disconnect_from_db()
+    
+def get_db_session():
+    return get_session()
 
 
 def _start_scheduler():
