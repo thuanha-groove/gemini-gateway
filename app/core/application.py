@@ -5,9 +5,9 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from app.config.config import settings
-from app.database.session import get_session
+from app.config.config import settings, sync_initial_settings
 from app.database.connection import connect_to_db, disconnect_from_db
+from app.database.initialization import initialize_database
 from app.exception.exceptions import setup_exception_handlers
 from app.log.logger import get_application_logger
 from app.middleware.middleware import setup_middlewares
@@ -37,12 +37,19 @@ def update_template_globals(app: FastAPI, update_info: dict):
 
 
 # --- Helper functions for lifespan ---
+async def _setup_database_and_config(app_settings):
+    """Initializes database, syncs settings, and initializes KeyManager."""
+    initialize_database()
+    logger.info("Database initialized successfully")
+    await connect_to_db()
+    await sync_initial_settings()
+    await get_key_manager_instance(app_settings.API_KEYS, app_settings.VERTEX_API_KEYS)
+    logger.info("Database, config sync, and KeyManager initialized successfully")
+
+
 async def _shutdown_database():
     """Disconnects from the database."""
     await disconnect_from_db()
-    
-def get_db_session():
-    return get_session()
 
 
 def _start_scheduler():
@@ -81,24 +88,15 @@ async def _perform_update_check(app: FastAPI):
 async def lifespan(app: FastAPI):
     """
     Manages the application startup and shutdown events.
+
+    Args:
+        app: FastAPI application instance.
     """
     logger.info("Application starting up...")
     try:
-        # Step 1: Initialize database connection and create tables.
-        await connect_to_db()
-        logger.info("Database connection and tables initialized.")
-
-        # Step 2: Initialize the KeyManager.
-        await get_key_manager_instance(settings.API_KEYS, settings.VERTEX_API_KEYS)
-        logger.info("KeyManager initialized.")
-
-        # Step 3: Perform update check.
+        await _setup_database_and_config(settings)
         await _perform_update_check(app)
-
-        # Step 4: Start the scheduler.
         _start_scheduler()
-
-        logger.info("Application startup complete.")
 
     except Exception as e:
         logger.critical(
@@ -109,7 +107,7 @@ async def lifespan(app: FastAPI):
 
     logger.info("Application shutting down...")
     _stop_scheduler()
-    await disconnect_from_db()
+    await _shutdown_database()
 
 
 def create_app() -> FastAPI:

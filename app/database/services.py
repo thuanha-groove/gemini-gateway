@@ -5,38 +5,34 @@ from typing import List, Optional, Dict, Any, Union
 from datetime import datetime
 from sqlalchemy import func, desc, asc, select, insert, update, delete
 import json
-from databases import Database
+from app.database.connection import database
 from app.database.models import Settings, ErrorLog, RequestLog
 from app.log.logger import get_database_logger
 
 logger = get_database_logger()
 
 
-async def get_all_settings(db: Database) -> List[Dict[str, Any]]:
+async def get_all_settings() -> List[Dict[str, Any]]:
     """
     Get all settings.
-    
-    Args:
-        db: The database connection.
     
     Returns:
         List[Dict[str, Any]]: A list of settings.
     """
     try:
         query = select(Settings)
-        result = await db.fetch_all(query)
+        result = await database.fetch_all(query)
         return [dict(row) for row in result]
     except Exception as e:
         logger.error(f"Failed to get all settings: {str(e)}")
         raise
 
 
-async def get_setting(db: Database, key: str) -> Optional[Dict[str, Any]]:
+async def get_setting(key: str) -> Optional[Dict[str, Any]]:
     """
     Get the setting for a specified key.
     
     Args:
-        db: The database connection.
         key: The key name of the setting.
     
     Returns:
@@ -44,19 +40,18 @@ async def get_setting(db: Database, key: str) -> Optional[Dict[str, Any]]:
     """
     try:
         query = select(Settings).where(Settings.key == key)
-        result = await db.fetch_one(query)
+        result = await database.fetch_one(query)
         return dict(result) if result else None
     except Exception as e:
         logger.error(f"Failed to get setting {key}: {str(e)}")
         raise
 
 
-async def update_setting(db: Database, key: str, value: str, description: Optional[str] = None) -> bool:
+async def update_setting(key: str, value: str, description: Optional[str] = None) -> bool:
     """
     Update a setting.
     
     Args:
-        db: The database connection.
         key: The key name of the setting.
         value: The value of the setting.
         description: The description of the setting.
@@ -66,7 +61,7 @@ async def update_setting(db: Database, key: str, value: str, description: Option
     """
     try:
         # Check if the setting exists
-        setting = await get_setting(db, key)
+        setting = await get_setting(key)
         
         if setting:
             # Update the setting
@@ -79,7 +74,7 @@ async def update_setting(db: Database, key: str, value: str, description: Option
                     updated_at=datetime.now()
                 )
             )
-            await db.execute(query)
+            await database.execute(query)
             logger.info(f"Updated setting: {key}")
             return True
         else:
@@ -94,7 +89,7 @@ async def update_setting(db: Database, key: str, value: str, description: Option
                     updated_at=datetime.now()
                 )
             )
-            await db.execute(query)
+            await database.execute(query)
             logger.info(f"Inserted setting: {key}")
             return True
     except Exception as e:
@@ -103,7 +98,6 @@ async def update_setting(db: Database, key: str, value: str, description: Option
 
 
 async def add_error_log(
-    db: Database,
     gemini_key: Optional[str] = None,
     model_name: Optional[str] = None,
     error_type: Optional[str] = None,
@@ -115,7 +109,6 @@ async def add_error_log(
     Add an error log.
     
     Args:
-        db: The database connection.
         gemini_key: The Gemini API key.
         error_log: The error log message.
         error_code: The error code (e.g., HTTP status code).
@@ -149,7 +142,7 @@ async def add_error_log(
                 request_time=datetime.now()
             )
         )
-        await db.execute(query)
+        await database.execute(query)
         logger.info(f"Added error log for key: {gemini_key}")
         return True
     except Exception as e:
@@ -158,7 +151,6 @@ async def add_error_log(
 
 
 async def get_error_logs(
-    db: Database,
     limit: int = 20,
     offset: int = 0,
     key_search: Optional[str] = None,
@@ -173,7 +165,6 @@ async def get_error_logs(
     Get error logs, supporting search, date filtering, and sorting.
 
     Args:
-        db: The database connection.
         limit (int): The number of records to return.
         offset (int): The offset for pagination.
         key_search (Optional[str]): Search term for Gemini key (fuzzy match).
@@ -224,7 +215,7 @@ async def get_error_logs(
 
         query = query.limit(limit).offset(offset)
 
-        result = await db.fetch_all(query)
+        result = await database.fetch_all(query)
         return [dict(row) for row in result]
     except Exception as e:
         logger.exception(f"Failed to get error logs with filters: {str(e)}")
@@ -232,7 +223,6 @@ async def get_error_logs(
 
 
 async def get_error_logs_count(
-    db: Database,
     key_search: Optional[str] = None,
     error_search: Optional[str] = None,
     error_code_search: Optional[str] = None,
@@ -243,7 +233,6 @@ async def get_error_logs_count(
     Get the total count of error logs that meet the criteria.
 
     Args:
-        db: The database connection.
         key_search (Optional[str]): Search term for Gemini key (fuzzy match).
         error_search (Optional[str]): Search term for error type or log content (fuzzy match).
         error_code_search (Optional[str]): Search term for error code (exact match).
@@ -275,7 +264,7 @@ async def get_error_logs_count(
                 logger.warning(f"Invalid format for error_code_search in count: '{error_code_search}'. Expected an integer. Skipping error code filter.")
 
 
-        count_result = await db.fetch_one(query)
+        count_result = await database.fetch_one(query)
         return count_result[0] if count_result else 0
     except Exception as e:
         logger.exception(f"Failed to count error logs with filters: {str(e)}")
@@ -283,12 +272,11 @@ async def get_error_logs_count(
 
 
 # New function: get details of a single error log
-async def get_error_log_details(db: Database, log_id: int) -> Optional[Dict[str, Any]]:
+async def get_error_log_details(log_id: int) -> Optional[Dict[str, Any]]:
     """
     Get detailed information of a single error log by ID.
 
     Args:
-        db: The database connection.
         log_id (int): The ID of the error log.
 
     Returns:
@@ -296,7 +284,7 @@ async def get_error_log_details(db: Database, log_id: int) -> Optional[Dict[str,
     """
     try:
         query = select(ErrorLog).where(ErrorLog.id == log_id)
-        result = await db.fetch_one(query)
+        result = await database.fetch_one(query)
         if result:
             # Convert request_msg (JSONB) to a string for returning in the API
             log_dict = dict(result)
@@ -314,12 +302,11 @@ async def get_error_log_details(db: Database, log_id: int) -> Optional[Dict[str,
         raise
 
 
-async def delete_error_logs_by_ids(db: Database, log_ids: List[int]) -> int:
+async def delete_error_logs_by_ids(log_ids: List[int]) -> int:
     """
     Bulk delete error logs by a list of IDs (asynchronous).
 
     Args:
-        db: The database connection.
         log_ids: A list of error log IDs to delete.
 
     Returns:
@@ -335,7 +322,7 @@ async def delete_error_logs_by_ids(db: Database, log_ids: List[int]) -> int:
         # Or, we can execute the deletion and assume success unless an exception is thrown
         # For simplicity, we execute the deletion and log it, without precisely returning the number of deletions
         # If a precise count is needed, we would need to run SELECT COUNT(*) first
-        await db.execute(query)
+        await database.execute(query)
         # Note: databases' execute does not return rowcount, so we can't directly return the number of deletions
         # Return the length of log_ids as the number of attempted deletions, or 0/1 to indicate the operation was attempted
         logger.info(f"Attempted bulk deletion for error logs with IDs: {log_ids}")
@@ -345,12 +332,11 @@ async def delete_error_logs_by_ids(db: Database, log_ids: List[int]) -> int:
         logger.error(f"Error during bulk deletion of error logs {log_ids}: {e}", exc_info=True)
         raise
 
-async def delete_error_log_by_id(db: Database, log_id: int) -> bool:
+async def delete_error_log_by_id(log_id: int) -> bool:
     """
     Delete a single error log by ID (asynchronous).
 
     Args:
-        db: The database connection.
         log_id: The ID of the error log to delete.
 
     Returns:
@@ -359,7 +345,7 @@ async def delete_error_log_by_id(db: Database, log_id: int) -> bool:
     try:
         # Check for existence first (optional, but more explicit)
         check_query = select(ErrorLog.id).where(ErrorLog.id == log_id)
-        exists = await db.fetch_one(check_query)
+        exists = await database.fetch_one(check_query)
 
         if not exists:
             logger.warning(f"Attempted to delete non-existent error log with ID: {log_id}")
@@ -367,7 +353,7 @@ async def delete_error_log_by_id(db: Database, log_id: int) -> bool:
 
         # Execute deletion
         delete_query = delete(ErrorLog).where(ErrorLog.id == log_id)
-        await db.execute(delete_query)
+        await database.execute(delete_query)
         logger.info(f"Successfully deleted error log with ID: {log_id}")
         return True
     except Exception as e:
@@ -375,20 +361,17 @@ async def delete_error_log_by_id(db: Database, log_id: int) -> bool:
         raise
  
  
-async def delete_all_error_logs(db: Database) -> int:
+async def delete_all_error_logs() -> int:
     """
     Deletes all error log entries.
  
-    Args:
-        db: The database connection.
-
     Returns:
         int: The number of error logs deleted.
     """
     try:
         # 1. Get the total count before deletion
         count_query = select(func.count()).select_from(ErrorLog)
-        total_to_delete = await db.fetch_val(count_query)
+        total_to_delete = await database.fetch_val(count_query)
  
         if total_to_delete == 0:
             logger.info("No error logs found to delete.")
@@ -396,7 +379,7 @@ async def delete_all_error_logs(db: Database) -> int:
  
         # 2. Execute the deletion
         delete_query = delete(ErrorLog)
-        await db.execute(delete_query)
+        await database.execute(delete_query)
         
         logger.info(f"Successfully deleted all {total_to_delete} error logs.")
         return total_to_delete
@@ -407,7 +390,6 @@ async def delete_all_error_logs(db: Database) -> int:
  
 # New function: add a request log
 async def add_request_log(
-    db: Database,
     model_name: Optional[str],
     api_key: Optional[str],
     is_success: bool,
@@ -419,7 +401,6 @@ async def add_request_log(
     Add an API request log.
 
     Args:
-        db: The database connection.
         model_name: The name of the model.
         api_key: The API key used.
         is_success: Whether the request was successful.
@@ -441,7 +422,7 @@ async def add_request_log(
             status_code=status_code,
             latency_ms=latency_ms
         )
-        await db.execute(query)
+        await database.execute(query)
         return True
     except Exception as e:
         logger.error(f"Failed to add request log: {str(e)}")

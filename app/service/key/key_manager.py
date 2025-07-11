@@ -200,8 +200,7 @@ async def get_key_manager_instance(
     """
     Get the KeyManager singleton instance.
 
-    If the instance has not been created, KeyManager will be initialized using the provided api_keys, vertex_api_keys,
-    or by fetching them from the settings.
+    If the instance has not been created, KeyManager will be initialized using the provided api_keys, vertex_api_keys.
     If the instance has been created, the api_keys parameter is ignored and the existing singleton is returned.
     If called after a reset, it will attempt to restore the previous state (failure count, loop position).
     """
@@ -209,15 +208,14 @@ async def get_key_manager_instance(
 
     async with _singleton_lock:
         if _singleton_instance is None:
-            # If keys are not provided, fetch them from settings
             if api_keys is None:
-                from app.config.config import get_settings
-                settings = get_settings()
-                api_keys = settings.API_KEYS
+                raise ValueError(
+                    "API keys are required to initialize or re-initialize the KeyManager instance."
+                )
             if vertex_api_keys is None:
-                from app.config.config import get_settings
-                settings = get_settings()
-                vertex_api_keys = settings.VERTEX_API_KEYS
+                raise ValueError(
+                    "Vertex API keys are required to initialize or re-initialize the KeyManager instance."
+                )
 
             if not api_keys:
                 logger.warning(

@@ -4,7 +4,7 @@ Database models module.
 import datetime
 from sqlalchemy import Column, Integer, String, Text, DateTime, JSON, Boolean
 
-from app.database.base import Base
+from app.database.connection import Base
 
 
 class Settings(Base):

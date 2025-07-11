@@ -3,7 +3,7 @@
 import datetime
 from typing import Union
 
-from sqlalchemy import and_, case, func, or_, select, literal_column
+from sqlalchemy import and_, case, func, or_, select
 
 from app.database.connection import database
 from app.database.models import RequestLog
@@ -14,9 +14,6 @@ logger = get_stats_logger()
 
 class StatsService:
     """Service class for handling statistics related operations."""
-
-    def __init__(self, db: database):
-        self.db = db
 
     async def get_calls_in_last_seconds(self, seconds: int) -> dict[str, int]:
         """Get the number of calls in the last N seconds (total, success, failure)"""
@@ -31,9 +28,9 @@ class StatsService:
                                 RequestLog.status_code >= 200,
                                 RequestLog.status_code < 300,
                             ),
-                            literal_column("1"),
+                            1,
                         ),
-                        else_=literal_column("0"),
+                        else_=0,
                     )
                 ).label("success"),
                 func.sum(
@@ -43,14 +40,14 @@ class StatsService:
                                 RequestLog.status_code < 200,
                                 RequestLog.status_code >= 300,
                             ),
-                            literal_column("1"),
+                            1,
                         ),
-                        (RequestLog.status_code.is_(None), literal_column("1")),
-                        else_=literal_column("0"),
+                        (RequestLog.status_code is None, 1),
+                        else_=0,
                     )
                 ).label("failure"),
             ).where(RequestLog.request_time >= cutoff_time)
-            result = await self.db.fetch_one(query)
+            result = await database.fetch_one(query)
             if result:
                 return {
                     "total": result["total"] or 0,
@@ -86,9 +83,9 @@ class StatsService:
                                 RequestLog.status_code >= 200,
                                 RequestLog.status_code < 300,
                             ),
-                            literal_column("1"),
+                            1,
                         ),
-                        else_=literal_column("0"),
+                        else_=0,
                     )
                 ).label("success"),
                 func.sum(
@@ -98,14 +95,14 @@ class StatsService:
                                 RequestLog.status_code < 200,
                                 RequestLog.status_code >= 300,
                             ),
-                            literal_column("1"),
+                            1,
                         ),
-                        (RequestLog.status_code.is_(None), literal_column("1")),
-                        else_=literal_column("0"),
+                        (RequestLog.status_code is None, 1),
+                        else_=0,
                     )
                 ).label("failure"),
             ).where(RequestLog.request_time >= start_of_month)
-            result = await self.db.fetch_one(query)
+            result = await database.fetch_one(query)
             if result:
                 return {
                     "total": result["total"] or 0,
@@ -176,7 +173,7 @@ class StatsService:
                 .order_by(RequestLog.request_time.desc())
             )
 
-            results = await self.db.fetch_all(query)
+            results = await database.fetch_all(query)
 
             details = []
             for row in results:
@@ -235,7 +232,7 @@ class StatsService:
                 .order_by(func.count(RequestLog.id).desc())
             )
 
-            results = await self.db.fetch_all(query)
+            results = await database.fetch_all(query)
 
             if not results:
                 logger.info(

@@ -4,7 +4,19 @@
 
 Gemini Gateway is an application built with Python FastAPI, designed to provide proxy and load balancing functions for the Google Gemini API. It allows you to manage multiple Gemini API Keys and implement key rotation, authentication, model filtering, and status monitoring through simple configuration. Additionally, the project integrates image generation and multiple image hosting upload functions, and supports proxying in the OpenAI API format.
 
-**Project Structure:**
+## 📚 Table of Contents
+
+- [🏗️ Project Structure](#️-project-structure)
+- [🏛️ Architecture](#️-architecture)
+- [✨ Feature Highlights](#-feature-highlights)
+- [🚀 Quick Start](#-quick-start)
+- [🔧 Complete Configuration List](#-complete-configuration-list)
+- [⚙️ API Endpoints](#️-api-endpoints)
+- [🤝 Contributing](#-contributing)
+- [🎉 Special Thanks](#-special-thanks)
+- [License](#-license)
+
+## 🏗️ Project Structure
 
 ```plaintext
 app/
@@ -23,6 +35,27 @@ app/
 ├── static/       # Static files (CSS, JS)
 ├── templates/    # HTML templates (e.g., Key status page)
 ├── utils/        # Utility functions
+```
+
+## 🏛️ Architecture
+
+```mermaid
+graph TD
+    Client([Client]) --> |API Request| Gateway{Gemini Gateway};
+
+    subgraph Gateway
+        Middleware --> Router;
+        Router --> |Request| Service;
+        Service --> |Get Key| KeyManager;
+        KeyManager --> |Fetch/Update Keys| Database[(Database)];
+        Service --> |Proxy Request| ExternalAPI[External Gemini/OpenAI API];
+        Service --> |Format Response| ResponseHandler;
+        ResponseHandler --> |Stream/JSON| Client;
+    end
+
+    style Client fill:#d4fcd7
+    style ExternalAPI fill:#fcd4d4
+    style Database fill:#d4e4fc
 ```
 
 ## ✨ Feature Highlights
@@ -138,7 +171,7 @@ If you want to run the source code directly locally for development or testing, 
 3. **Access Application**:
     After the application starts, you can access `http://localhost:8000` (or the host and port you specified) through a browser or API tool.
 
-### Complete Configuration List
+## 🔧 Complete Configuration List
 
 | Configuration Item             | Description                                                                 | Default Value                                                                                                                                                                                                                            |
 | :----------------------------- | :-------------------------------------------------------------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

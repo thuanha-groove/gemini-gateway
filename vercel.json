@@ -17,7 +17,8 @@
     }
   ],
   "env": {
-    "DATABASE_TYPE": "postgres",
+    "DATABASE_TYPE": "sqlite",
+    "SQLITE_DATABASE": "default_db",
     "API_KEYS": "[]",
     "ALLOWED_TOKENS": "[]",
     "VERTEX_API_KEYS": "[]",

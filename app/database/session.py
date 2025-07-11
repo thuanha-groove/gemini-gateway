@@ -1,21 +1,23 @@
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import sessionmaker, Session
 from app.database.connection import engine
 
-# The sessionmaker is now configured in get_session to ensure the engine is initialized.
-async_session_factory = None
+# The sessionmaker is now configured in get_db to ensure the engine is initialized.
+session_factory = None
 
-async def get_session() -> AsyncSession:
+def get_db() -> Session:
     """
     Provide a database session to a dependency.
     """
-    global async_session_factory
-    if async_session_factory is None:
+    global session_factory
+    if session_factory is None:
         # Initialize the session factory if it hasn't been already.
         # This will use the engine created during the application's startup.
-        async_session_factory = sessionmaker(
-            engine, class_=AsyncSession, expire_on_commit=False
+        session_factory = sessionmaker(
+            autocommit=False, autoflush=False, bind=engine
         )
     
-    async with async_session_factory() as session:
-        yield session
+    db = session_factory()
+    try:
+        yield db
+    finally:
+        db.close()
