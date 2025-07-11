@@ -3,6 +3,7 @@
 from typing import Dict, Any, AsyncGenerator, Optional
 import httpx
 import random
+import time
 from abc import ABC, abstractmethod
 from app.config.config import settings
 from app.log.logger import get_api_client_logger
@@ -61,7 +62,19 @@ class GeminiApiClient(ApiClient):
             try:
                 response = await client.get(url)
                 response.raise_for_status()
-                return response.json()
+                models = response.json().get("models", [])
+                return {
+                    "object": "list",
+                    "data": [
+                        {
+                            "id": model.get("name").replace("models/", ""),
+                            "object": "model",
+                            "created": int(time.time()),
+                            "owned_by": "google",
+                        }
+                        for model in models
+                    ],
+                }
             except httpx.HTTPStatusError as e:
                 logger.error(f"Failed to get model list: {e.response.status_code}")
                 logger.error(e.response.text)
@@ -141,24 +154,7 @@ class OpenaiApiClient(ApiClient):
         self.timeout = timeout
         
     async def get_models(self, api_key: str) -> Dict[str, Any]:
-        timeout = httpx.Timeout(self.timeout, read=self.timeout)
-
-        proxy_to_use = None
-        if settings.PROXIES:
-            if settings.PROXIES_USE_CONSISTENCY_HASH_BY_API_KEY:
-                proxy_to_use = settings.PROXIES[hash(api_key) % len(settings.PROXIES)]
-            else:
-                proxy_to_use = random.choice(settings.PROXIES)
-            logger.info(f"Using proxy for getting models: {proxy_to_use}")
-
-        async with httpx.AsyncClient(timeout=timeout, proxy=proxy_to_use) as client:
-            url = f"{self.base_url}/openai/models"
-            headers = {"Authorization": f"Bearer {api_key}"}
-            response = await client.get(url, headers=headers)
-            if response.status_code != 200:
-                error_content = response.text
-                raise Exception(f"API call failed with status code {response.status_code}, {error_content}")
-            return response.json()
+        return await GeminiApiClient(self.base_url).get_models(api_key)
 
     async def generate_content(self, payload: Dict[str, Any], api_key: str) -> Dict[str, Any]:
         timeout = httpx.Timeout(self.timeout, read=self.timeout)

@@ -1572,7 +1572,7 @@ function collectFormData() {
 
   // Handle normal inputs and selects
   const inputsAndSelects = document.querySelectorAll(
-    'input[type="text"], input[type="number"], input[type="password"], select, textarea'
+    'input:not([type="checkbox"]):not([type="radio"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="image"]), select, textarea'
   );
   inputsAndSelects.forEach((element) => {
     if (

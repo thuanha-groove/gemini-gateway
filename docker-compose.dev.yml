@@ -1,9 +1,27 @@
 volumes:
   mysql_data:
+  open-webui:
 services:
+  webui:
+    image: ghcr.io/open-webui/open-webui:main
+    container_name: open-webui
+    restart: unless-stopped
+    ports:
+      - "8081:8080"
+    env_file:
+      - .env
+    environment:
+      - "ENABLE_OPENAI_API=true" 
+      - "OPENAI_API_BASE_URL=http://gemini-newgateway:8001/hf/v1"
+      - "OPENAI_API_KEY=${GEMINI_GATEWAY_AUTH_TOKEN}"
+      - "WEBUI_SECRET_KEY="
+    volumes:
+      - "open-webui:/app/backend/data"
+    depends_on:
+      - gemini-newgateway
   gemini-newgateway:
     build: .
-    container_name: gemini-gateway
+    container_name: gemini-newgateway
     restart: unless-stopped
     ports:
       - "8001:8000"
