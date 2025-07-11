@@ -26,42 +26,47 @@ def initialize_database():
     if database is not None:
         return
 
-    if settings.POSTGRES_URL:
-        # Parse the URL to handle SSL mode correctly for asyncpg
-        parsed_url = urlparse(settings.POSTGRES_URL)
+    db_url = settings.POSTGRES_URL
+    db_type = settings.DATABASE_TYPE
+
+    connect_args = {}
+    if db_url or db_type == "postgres":
+        connect_args["statement_cache_size"] = 0
+
+    logger.info(f"Using connect_args: {connect_args}")
+
+    if db_url:
+        parsed_url = urlparse(db_url)
         query_params = parse_qs(parsed_url.query)
-        
         if 'sslmode' in query_params:
-            # asyncpg uses 'ssl' parameter, not 'sslmode'.
-            # The value of sslmode is transferred to the ssl parameter.
-            ssl_value = query_params.pop('sslmode')[0]
-            query_params['ssl'] = ssl_value
-        
+            query_params['ssl'] = query_params.pop('sslmode')[0]
         if 'supa' in query_params:
             query_params.pop('supa')
-            
-        # Rebuild the URL with the modified query string
+        
         new_query = urlencode(query_params, doseq=True)
-        # Replace scheme for asyncpg
         db_url_obj = parsed_url._replace(scheme='postgresql+asyncpg', query=new_query)
         DATABASE_URL = urlunparse(db_url_obj)
-        
-    elif settings.DATABASE_TYPE == "sqlite":
-        # Ensure the data directory exists
+    elif db_type == "sqlite":
         data_dir = Path("data")
         data_dir.mkdir(exist_ok=True)
         db_path = data_dir / settings.SQLITE_DATABASE
         DATABASE_URL = f"sqlite:///{db_path}"
-    elif settings.DATABASE_TYPE == "postgres":
+    elif db_type == "postgres":
         DATABASE_URL = f"postgresql+asyncpg://{settings.POSTGRES_USER}:{quote_plus(settings.POSTGRES_PASSWORD)}@{settings.POSTGRES_HOST}:{settings.POSTGRES_PORT}/{settings.POSTGRES_DB}"
     else:
         raise ValueError("Unsupported database type. Please set DATABASE_TYPE to 'sqlite' or 'postgres'.")
 
-    engine = create_async_engine(DATABASE_URL, pool_pre_ping=True)
-    if settings.DATABASE_TYPE == "sqlite":
+    engine = create_async_engine(
+        DATABASE_URL,
+        pool_pre_ping=True,
+        connect_args=connect_args
+    )
+
+    if db_type == "sqlite":
         database = Database(DATABASE_URL)
     else:
-        database = Database(DATABASE_URL, min_size=5, max_size=20)
+        logger.info(f"Initializing Database with connect_args: {connect_args}")
+        database = Database(DATABASE_URL, min_size=5, max_size=20, force_rollback=True, **connect_args)
 
 
 async def connect_to_db():
@@ -81,8 +86,8 @@ async def connect_to_db():
             # --- Create tables immediately after first connect ---
             logger.info("Creating database tables...")
             async with engine.begin() as conn:
-                # Use the imported Base's metadata
-                await conn.run_sync(Base.metadata.create_all)
+                # Use checkfirst=True to prevent race conditions during table creation
+                await conn.run_sync(Base.metadata.create_all, checkfirst=True)
             logger.info("Database tables created successfully.")
 
         except Exception as e:
@@ -114,5 +119,3 @@ async def get_db() -> Database:
         # where connect_to_db is called on startup.
         await connect_to_db()
     return database
-
-initialize_database()

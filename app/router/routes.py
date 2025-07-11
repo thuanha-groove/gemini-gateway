@@ -2,13 +2,14 @@
 Routing configuration module, responsible for setting and configuring application routing
 """
 
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
 from app.core.security import verify_auth_token
 from app.log.logger import get_routes_logger
 from app.router import error_log_routes, gemini_routes, openai_routes, config_routes, scheduler_routes, stats_routes, version_routes, openai_compatiable_routes, vertex_express_routes
+from app.database.connection import get_db
 from app.service.key.key_manager import get_key_manager_instance
 from app.service.stats.stats_service import StatsService
 
@@ -16,6 +17,9 @@ logger = get_routes_logger()
 
 templates = Jinja2Templates(directory="app/templates")
 
+
+def get_stats_service(db=Depends(get_db)) -> StatsService:
+    return StatsService(db)
 
 def setup_routers(app: FastAPI) -> None:
     """
@@ -78,7 +82,7 @@ def setup_page_routes(app: FastAPI) -> None:
             return RedirectResponse(url="/", status_code=302)
 
     @app.get("/keys", response_class=HTMLResponse)
-    async def keys_page(request: Request):
+    async def keys_page(request: Request, stats_service: StatsService = Depends(get_stats_service)):
         """Key management page"""
         try:
             auth_token = request.cookies.get("auth_token")
@@ -92,7 +96,6 @@ def setup_page_routes(app: FastAPI) -> None:
             valid_key_count = len(keys_status["valid_keys"])
             invalid_key_count = len(keys_status["invalid_keys"])
 
-            stats_service = StatsService()
             api_stats = await stats_service.get_api_usage_stats()
             logger.info(f"API stats retrieved: {api_stats}")
 
@@ -167,7 +170,7 @@ def setup_api_stats_routes(app: FastAPI) -> None:
         app: FastAPI application instance
     """
     @app.get("/api/stats/details")
-    async def api_stats_details(request: Request, period: str):
+    async def api_stats_details(request: Request, period: str, stats_service: StatsService = Depends(get_stats_service)):
         """Get API call details for a specified time period"""
         try:
             auth_token = request.cookies.get("auth_token")
@@ -176,7 +179,6 @@ def setup_api_stats_routes(app: FastAPI) -> None:
                 return {"error": "Unauthorized"}, 401
 
             logger.info(f"Fetching API call details for period: {period}")
-            stats_service = StatsService()
             details = await stats_service.get_api_call_details(period)
             return details
         except ValueError as e:
