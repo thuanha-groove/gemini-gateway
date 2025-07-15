@@ -3,7 +3,7 @@ volumes:
 services:
   gemini-newgateway:
     build: .
-    container_name: gemini-gateway
+    container_name: gemini-devgateway
     restart: unless-stopped
     ports:
       - "8001:8000"
