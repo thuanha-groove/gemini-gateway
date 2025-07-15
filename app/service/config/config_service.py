@@ -33,41 +33,27 @@ class ConfigService:
         return settings.model_dump()
 
     @staticmethod
-    async def update_config(config_data: Dict[str, Any]) -> Dict[str, Any]:
-        for key, value in config_data.items():
-            if hasattr(settings, key):
-                setattr(settings, key, value)
-                logger.debug(f"Updated setting in memory: {key}")
-
-        # Get existing settings
-        existing_settings_raw: List[Dict[str, Any]] = await get_all_settings()
-        existing_settings_map: Dict[str, Dict[str, Any]] = {
-            s["key"]: s for s in existing_settings_raw
-        }
-        existing_keys = set(existing_settings_map.keys())
-
+    async def _prepare_config_data(
+        config_data: Dict[str, Any],
+        existing_settings_map: Dict[str, Dict[str, Any]],
+    ) -> (List[Dict[str, Any]], List[Dict[str, Any]]):
         settings_to_update: List[Dict[str, Any]] = []
         settings_to_insert: List[Dict[str, Any]] = []
         now = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=8)))
+        existing_keys = set(existing_settings_map.keys())
 
-        # Prepare data for update or insertion
         for key, value in config_data.items():
-            # Handle different value types
-            if isinstance(value, list):
-                db_value = json.dumps(value)
-            elif isinstance(value, dict):
+            if isinstance(value, list) or isinstance(value, dict):
                 db_value = json.dumps(value)
             elif isinstance(value, bool):
                 db_value = str(value).lower()
             else:
                 db_value = str(value)
 
-            # Only update if the value has changed
             if key in existing_keys and existing_settings_map[key]["value"] == db_value:
                 continue
 
             description = f"{key} configuration item"
-
             data = {
                 "key": key,
                 "value": db_value,
@@ -84,115 +70,98 @@ class ConfigService:
                 data["created_at"] = now
                 settings_to_insert.append(data)
 
-        # Execute bulk insert and update in a transaction
-        if settings_to_insert or settings_to_update:
-            try:
-                async with database.transaction():
-                    if settings_to_insert:
-                        query_insert = insert(Settings).values(settings_to_insert)
-                        await database.execute(query=query_insert)
-                        logger.info(
-                            f"Bulk inserted {len(settings_to_insert)} settings."
-                        )
+        return settings_to_insert, settings_to_update
 
-                    if settings_to_update:
-                        for setting_data in settings_to_update:
-                            query_update = (
-                                update(Settings)
-                                .where(Settings.key == setting_data["key"])
-                                .values(
-                                    value=setting_data["value"],
-                                    description=setting_data["description"],
-                                    updated_at=setting_data["updated_at"],
-                                )
-                            )
-                            await database.execute(query=query_update)
-                        logger.info(f"Updated {len(settings_to_update)} settings.")
-            except Exception as e:
-                logger.error(f"Failed to bulk update/insert settings: {str(e)}")
-                raise
+    @staticmethod
+    async def _execute_db_operations(
+        settings_to_insert: List[Dict[str, Any]],
+        settings_to_update: List[Dict[str, Any]],
+    ):
+        if not settings_to_insert and not settings_to_update:
+            return
 
-        # Reset and re-initialize KeyManager
         try:
-            await reset_key_manager_instance()
-            await get_key_manager_instance(settings.API_KEYS, settings.VERTEX_API_KEYS)
-            logger.info("KeyManager instance re-initialized with updated settings.")
-        except Exception as e:
-            logger.error(f"Failed to re-initialize KeyManager: {str(e)}")
+            async with database.transaction():
+                if settings_to_insert:
+                    query_insert = insert(Settings).values(settings_to_insert)
+                    await database.execute(query=query_insert)
+                    logger.info(
+                        f"Bulk inserted {len(settings_to_insert)} settings."
+                    )
 
-        return await ConfigService.get_config()
+                if settings_to_update:
+                    for setting_data in settings_to_update:
+                        query_update = (
+                            update(Settings)
+                            .where(Settings.key == setting_data["key"])
+                            .values(
+                                value=setting_data["value"],
+                                description=setting_data["description"],
+                                updated_at=setting_data["updated_at"],
+                            )
+                        )
+                        await database.execute(query=query_update)
+                    logger.info(f"Updated {len(settings_to_update)} settings.")
+        except Exception as e:
+            logger.error(f"Failed to bulk update/insert settings: {str(e)}")
+            raise HTTPException(
+                status_code=500, detail=f"Failed to update settings in database: {e}"
+            )
+
+    @staticmethod
+    async def update_config(config_data: Dict[str, Any]) -> Dict[str, Any]:
+        try:
+            for key, value in config_data.items():
+                if hasattr(settings, key):
+                    setattr(settings, key, value)
+                    logger.debug(f"Updated setting in memory: {key}")
+
+            existing_settings_raw: List[Dict[str, Any]] = await get_all_settings()
+            existing_settings_map: Dict[str, Dict[str, Any]] = {
+                s["key"]: s for s in existing_settings_raw
+            }
+
+            settings_to_insert, settings_to_update = await ConfigService._prepare_config_data(
+                config_data, existing_settings_map
+            )
+
+            await ConfigService._execute_db_operations(
+                settings_to_insert, settings_to_update
+            )
+
+            await reset_key_manager_instance()
+            key_manager = await get_key_manager_instance(settings.API_KEYS, settings.VERTEX_API_KEYS)
+            logger.info("KeyManager instance re-initialized with updated settings.")
+
+            return await ConfigService.get_config()
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"An unexpected error occurred while updating config: {e}")
+            raise HTTPException(
+                status_code=500, detail=f"An unexpected error occurred: {e}"
+            )
 
     @staticmethod
     async def delete_key(key_to_delete: str) -> Dict[str, Any]:
         """Delete a single API key"""
-        # Ensure settings.API_KEYS is a list
-        if not isinstance(settings.API_KEYS, list):
-            settings.API_KEYS = []
-
-        original_keys_count = len(settings.API_KEYS)
-        # Create a new list that does not contain the key to be deleted
-        updated_api_keys = [k for k in settings.API_KEYS if k != key_to_delete]
-
-        if len(updated_api_keys) < original_keys_count:
-            # Key found and removed from the list
-            settings.API_KEYS = updated_api_keys  # First, update the settings in memory
-            # Use update_config to persist the changes, which handles both the database and KeyManager
-            await ConfigService.update_config({"API_KEYS": settings.API_KEYS})
-            logger.info(f"Key '{key_to_delete}' has been successfully deleted.")
-            return {"success": True, "message": f"Key '{key_to_delete}' has been successfully deleted."}
-        else:
-            # Key not found
-            logger.warning(f"Attempted to delete key '{key_to_delete}', but it was not found.")
-            return {"success": False, "message": f"Key '{key_to_delete}' not found."}
+        key_manager = await get_key_manager_instance()
+        await key_manager.delete_api_key(key_to_delete)
+        settings.API_KEYS = key_manager.api_keys
+        await ConfigService.update_config({"API_KEYS": settings.API_KEYS})
+        logger.info(f"Key '{key_to_delete}' has been successfully deleted.")
+        return {"success": True, "message": f"Key '{key_to_delete}' has been successfully deleted."}
 
     @staticmethod
     async def delete_selected_keys(keys_to_delete: List[str]) -> Dict[str, Any]:
         """Bulk delete selected API keys"""
-        if not isinstance(settings.API_KEYS, list):
-            settings.API_KEYS = []
-
-        deleted_count = 0
-        not_found_keys: List[str] = []
-
-        current_api_keys = list(settings.API_KEYS)
-        keys_actually_removed: List[str] = []
-
-        for key_to_del in keys_to_delete:
-            if key_to_del in current_api_keys:
-                current_api_keys.remove(key_to_del)
-                keys_actually_removed.append(key_to_del)
-                deleted_count += 1
-            else:
-                not_found_keys.append(key_to_del)
-
-        if deleted_count > 0:
-            settings.API_KEYS = current_api_keys
-            await ConfigService.update_config({"API_KEYS": settings.API_KEYS})
-            logger.info(
-                f"Successfully deleted {deleted_count} keys. Keys: {keys_actually_removed}"
-            )
-            message = f"Successfully deleted {deleted_count} keys."
-            if not_found_keys:
-                message += f" {len(not_found_keys)} keys not found: {not_found_keys}."
-            return {
-                "success": True,
-                "message": message,
-                "deleted_count": deleted_count,
-                "not_found_keys": not_found_keys,
-            }
-        else:
-            message = "No keys were deleted."
-            if not_found_keys:
-                message = f"All {len(not_found_keys)} specified keys were not found: {not_found_keys}."
-            elif not keys_to_delete:
-                message = "No keys specified for deletion."
-            logger.warning(message)
-            return {
-                "success": False,
-                "message": message,
-                "deleted_count": 0,
-                "not_found_keys": not_found_keys,
-            }
+        key_manager = await get_key_manager_instance()
+        for key in keys_to_delete:
+            await key_manager.delete_api_key(key)
+        settings.API_KEYS = key_manager.api_keys
+        await ConfigService.update_config({"API_KEYS": settings.API_KEYS})
+        logger.info(f"Successfully deleted {len(keys_to_delete)} keys.")
+        return {"success": True, "message": f"Successfully deleted {len(keys_to_delete)} keys."}
 
     @staticmethod
     async def reset_config() -> Dict[str, Any]:

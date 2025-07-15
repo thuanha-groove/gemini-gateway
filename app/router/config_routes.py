@@ -9,6 +9,7 @@ from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, Field
 
 from app.core.security import verify_auth_token
+from app.domain.config_models import ConfigUpdate
 from app.log.logger import Logger, get_config_routes_logger
 from app.service.config.config_service import ConfigService
 
@@ -27,16 +28,17 @@ async def get_config(request: Request):
 
 
 @router.put("", response_model=Dict[str, Any])
-async def update_config(config_data: Dict[str, Any], request: Request):
+async def update_config(config_data: ConfigUpdate, request: Request):
     auth_token = request.cookies.get("auth_token")
     if not auth_token or not verify_auth_token(auth_token):
         logger.warning("Unauthorized access attempt to config page")
         return RedirectResponse(url="/", status_code=302)
     try:
-        result = await ConfigService.update_config(config_data)
+        result = await ConfigService.update_config(config_data.model_dump(exclude_unset=True))
         # After the configuration is updated successfully, immediately update the level of all loggers
-        Logger.update_log_levels(config_data["LOG_LEVEL"])
-        logger.info("Log levels updated after configuration change.")
+        if config_data.LOG_LEVEL:
+            Logger.update_log_levels(config_data.LOG_LEVEL)
+            logger.info("Log levels updated after configuration change.")
         return result
     except Exception as e:
         logger.error(f"Error updating config or log levels: {e}", exc_info=True)

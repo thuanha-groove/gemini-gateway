@@ -1212,34 +1212,32 @@
 
         <!-- Thinking Model Budget Mapping -->
         <div class="mb-6">
-          <label
-            for="THINKING_BUDGET_MAP"
-            class="block font-semibold mb-2 text-gray-700"
-            >Thinking Model Budget Mapping</label
-          >
-          <div
-            class="bg-white rounded-lg border border-gray-200 p-4 mb-2 space-y-3"
-            id="THINKING_BUDGET_MAP_container"
-            style="
-              background-color: rgba(255, 255, 255, 0.95);
-              border: 1px solid rgba(0, 0, 0, 0.12);
-              color: #374151;
-            "
-          >
-            <!-- Key-value pairs will be dynamically added here -->
-            <div class="text-gray-500 text-sm italic">
-              Please add thinking models above first, then configure the budget here.
+            <label class="block font-semibold mb-2 text-gray-700">Thinking Model Budget Mapping</label>
+            <div class="overflow-x-auto rounded-lg border border-gray-200">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Model Name
+                            </th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Budget
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody id="THINKING_BUDGET_MAP_container" class="bg-white divide-y divide-gray-200">
+                        <!-- Rows will be dynamically added here -->
+                        <tr>
+                            <td colspan="2" class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 italic">
+                                Please add thinking models above first, then configure the budget here.
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
             </div>
-          </div>
-          <!-- Remove add budget mapping button -->
-          <!-- <div class="flex justify-end">
-                            <button type="button" class="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg font-medium transition-all duration-200 flex items-center gap-2" id="addBudgetMapItemBtn">
-                                <i class="fas fa-plus"></i> Add Budget Mapping
-                            </button>
-                        </div> -->
-          <small class="text-gray-500 mt-1 block"
-            >Set a budget for each thinking model (integer, max 32767), this is automatically associated with the model list above.</small
-          >
+            <small class="text-gray-500 mt-1 block">
+                Set a budget for each thinking model (integer, max 32767), this is automatically associated with the model list above.
+            </small>
         </div>
         <!-- Safety Settings -->
         <div class="mb-6">
@@ -1890,6 +1888,23 @@
   </div>
 </div>
 
+<!-- Notification Details Modal -->
+<div id="notificationDetailsModal" class="modal">
+    <div class="w-full max-w-lg mx-auto rounded-2xl shadow-2xl overflow-hidden animate-fade-in"
+         style="background-color: rgba(255, 255, 255, 0.98); color: #374151; border: 1px solid rgba(0, 0, 0, 0.12);">
+        <div class="p-6">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-bold text-gray-800">Notification Details</h2>
+                <button id="closeNotificationDetailsModalBtn" class="text-gray-300 hover:text-gray-800 text-xl"
+                        onclick="closeModal(document.getElementById('notificationDetailsModal'))">
+                    &times;
+                </button>
+            </div>
+            <div id="notificationDetailsContent" class="text-gray-600 text-sm" style="white-space: pre-wrap; word-wrap: break-word;"></div>
+        </div>
+    </div>
+</div>
+
 <!-- Scroll buttons are now in base.html -->
 <div class="scroll-buttons">
   <button class="scroll-button" onclick="scrollToTop()" title="Scroll to Top">
@@ -1955,51 +1970,35 @@
 
 <!-- Bulk Delete API Key Modal -->
 <div id="bulkDeleteApiKeyModal" class="modal">
-  <div
-    class="w-full max-w-lg mx-auto rounded-2xl shadow-2xl overflow-hidden animate-fade-in"
-    style="
-      background-color: rgba(255, 255, 255, 0.98);
-      color: #374151;
-      border: 1px solid rgba(0, 0, 0, 0.12);
-    "
-  >
-    <div class="p-6">
-      <div class="flex justify-between items-center mb-4">
-        <h2 class="text-xl font-bold text-gray-800">Bulk Delete API Keys</h2>
-        <button
-          id="closeBulkDeleteModalBtn"
-          class="text-gray-300 hover:text-gray-800 text-xl"
-        >
-          &times;
-        </button>
-      </div>
-      <p class="text-gray-300 mb-4">
-        Paste one or more keys per line, valid keys will be automatically extracted and deleted from the list.
-      </p>
-      <textarea
-        id="bulkDeleteApiKeyInput"
-        rows="10"
-        placeholder="Paste API keys to delete here..."
-        class="w-full px-4 py-3 rounded-lg font-mono text-sm form-input-themed"
-      ></textarea>
-      <div class="flex justify-end gap-3 mt-6">
-        <button
-          type="button"
-          id="confirmBulkDeleteApiKeyBtn"
-          class="bg-red-600 hover:bg-red-700 text-white px-6 py-2 rounded-lg font-medium transition"
-        >
-          Confirm Delete
-        </button>
-        <button
-          type="button"
-          id="cancelBulkDeleteApiKeyBtn"
-          class="bg-gray-500 bg-opacity-50 hover:bg-opacity-70 text-gray-200 px-6 py-2 rounded-lg font-medium transition"
-        >
-          Cancel
-        </button>
-      </div>
+    <div class="w-full max-w-lg mx-auto rounded-2xl shadow-2xl overflow-hidden animate-fade-in"
+         style="background-color: rgba(255, 255, 255, 0.98); color: #374151; border: 1px solid rgba(0, 0, 0, 0.12);">
+        <div class="p-6">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-bold text-gray-800">Bulk Delete API Keys</h2>
+                <button id="closeBulkDeleteModalBtn" class="text-gray-300 hover:text-gray-800 text-xl"
+                        onclick="closeModal(document.getElementById('bulkDeleteApiKeyModal'))">
+                    &times;
+                </button>
+            </div>
+            <p class="text-gray-500 mb-2">
+                Paste one or more keys per line. Keys will be automatically validated and deleted.
+            </p>
+            <input type="search" id="bulkDeleteApiKeySearchInput" placeholder="Filter keys to delete..."
+                   class="w-full px-4 py-2 rounded-lg form-input-themed mb-2"/>
+            <textarea id="bulkDeleteApiKeyInput" rows="8" placeholder="Paste API keys to delete here..."
+                      class="w-full px-4 py-3 rounded-lg font-mono text-sm form-input-themed"></textarea>
+            <div class="flex justify-end gap-3 mt-4">
+                <button type="button" id="confirmBulkDeleteApiKeyBtn"
+                        class="bg-red-600 hover:bg-red-700 text-white px-6 py-2 rounded-lg font-medium transition">
+                    Confirm Delete
+                </button>
+                <button type="button" id="cancelBulkDeleteApiKeyBtn"
+                        class="bg-gray-500 hover:bg-gray-600 text-white px-6 py-2 rounded-lg font-medium transition">
+                    Cancel
+                </button>
+            </div>
+        </div>
     </div>
-  </div>
 </div>
 
 <!-- Proxy Add Modal -->
@@ -2053,51 +2052,35 @@
 
 <!-- Bulk Delete Proxy Modal -->
 <div id="bulkDeleteProxyModal" class="modal">
-  <div
-    class="w-full max-w-lg mx-auto rounded-2xl shadow-2xl overflow-hidden animate-fade-in"
-    style="
-      background-color: rgba(255, 255, 255, 0.98);
-      color: #374151;
-      border: 1px solid rgba(0, 0, 0, 0.12);
-    "
-  >
-    <div class="p-6">
-      <div class="flex justify-between items-center mb-4">
-        <h2 class="text-xl font-bold text-gray-800">Bulk Delete Proxy Servers</h2>
-        <button
-          id="closeBulkDeleteProxyModalBtn"
-          class="text-gray-300 hover:text-gray-800 text-xl"
-        >
-          &times;
-        </button>
-      </div>
-      <p class="text-gray-300 mb-4">
-        Paste one or more proxy addresses per line, valid addresses will be automatically extracted and deleted from the list.
-      </p>
-      <textarea
-        id="bulkDeleteProxyInput"
-        rows="10"
-        placeholder="Paste proxy addresses to delete here..."
-        class="w-full px-4 py-3 rounded-lg font-mono text-sm form-input-themed"
-      ></textarea>
-      <div class="flex justify-end gap-3 mt-6">
-        <button
-          type="button"
-          id="confirmBulkDeleteProxyBtn"
-          class="bg-red-600 hover:bg-red-700 text-white px-6 py-2 rounded-lg font-medium transition"
-        >
-          Confirm Delete
-        </button>
-        <button
-          type="button"
-          id="cancelBulkDeleteProxyBtn"
-          class="bg-gray-500 bg-opacity-50 hover:bg-opacity-70 text-gray-200 px-6 py-2 rounded-lg font-medium transition"
-        >
-          Cancel
-        </button>
-      </div>
+    <div class="w-full max-w-lg mx-auto rounded-2xl shadow-2xl overflow-hidden animate-fade-in"
+         style="background-color: rgba(255, 255, 255, 0.98); color: #374151; border: 1px solid rgba(0, 0, 0, 0.12);">
+        <div class="p-6">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-bold text-gray-800">Bulk Delete Proxy Servers</h2>
+                <button id="closeBulkDeleteProxyModalBtn" class="text-gray-300 hover:text-gray-800 text-xl"
+                        onclick="closeModal(document.getElementById('bulkDeleteProxyModal'))">
+                    &times;
+                </button>
+            </div>
+            <p class="text-gray-500 mb-2">
+                Paste one or more proxy addresses per line. Proxies will be automatically validated and deleted.
+            </p>
+            <input type="search" id="bulkDeleteProxySearchInput" placeholder="Filter proxies to delete..."
+                   class="w-full px-4 py-2 rounded-lg form-input-themed mb-2"/>
+            <textarea id="bulkDeleteProxyInput" rows="8" placeholder="Paste proxy addresses to delete here..."
+                      class="w-full px-4 py-3 rounded-lg font-mono text-sm form-input-themed"></textarea>
+            <div class="flex justify-end gap-3 mt-4">
+                <button type="button" id="confirmBulkDeleteProxyBtn"
+                        class="bg-red-600 hover:bg-red-700 text-white px-6 py-2 rounded-lg font-medium transition">
+                    Confirm Delete
+                </button>
+                <button type="button" id="cancelBulkDeleteProxyBtn"
+                        class="bg-gray-500 hover:bg-gray-600 text-white px-6 py-2 rounded-lg font-medium transition">
+                    Cancel
+                </button>
+            </div>
+        </div>
     </div>
-  </div>
 </div>
 
 <!-- Reset Confirmation Modal -->

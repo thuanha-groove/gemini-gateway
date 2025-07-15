@@ -112,6 +112,11 @@ document.addEventListener("DOMContentLoaded", function () {
     saveBtn.addEventListener("click", saveConfig);
   }
 
+  // Also handle form submission via Enter key
+  if (configForm) {
+    configForm.addEventListener("submit", saveConfig);
+  }
+
   // Reset button
   const resetBtn = document.getElementById("resetBtn");
   if (resetBtn) {
@@ -176,6 +181,17 @@ document.addEventListener("DOMContentLoaded", function () {
       handleBulkDeleteApiKeys
     );
 
+  const bulkDeleteApiKeySearchInput = document.getElementById("bulkDeleteApiKeySearchInput");
+  if (bulkDeleteApiKeySearchInput) {
+    bulkDeleteApiKeySearchInput.addEventListener("input", () => {
+        const searchTerm = bulkDeleteApiKeySearchInput.value.toLowerCase();
+        const bulkDeleteApiKeyInput = document.getElementById("bulkDeleteApiKeyInput");
+        const keys = bulkDeleteApiKeyInput.value.split("\n");
+        const filteredKeys = keys.filter(key => key.toLowerCase().includes(searchTerm));
+        bulkDeleteApiKeyInput.value = filteredKeys.join("\n");
+    });
+  }
+
   // Proxy Modal Elements and Events
   const addProxyBtn = document.getElementById("addProxyBtn");
   const closeProxyModalBtn = document.getElementById("closeProxyModalBtn");
@@ -226,6 +242,17 @@ document.addEventListener("DOMContentLoaded", function () {
       "click",
       handleBulkDeleteProxies
     );
+
+  const bulkDeleteProxySearchInput = document.getElementById("bulkDeleteProxySearchInput");
+  if (bulkDeleteProxySearchInput) {
+    bulkDeleteProxySearchInput.addEventListener("input", () => {
+        const searchTerm = bulkDeleteProxySearchInput.value.toLowerCase();
+        const bulkDeleteProxyInput = document.getElementById("bulkDeleteProxyInput");
+        const proxies = bulkDeleteProxyInput.value.split("\n");
+        const filteredProxies = proxies.filter(proxy => proxy.toLowerCase().includes(searchTerm));
+        bulkDeleteProxyInput.value = filteredProxies.join("\n");
+    });
+  }
 
   // Reset Confirmation Modal Elements and Events
   const closeResetModalBtn = document.getElementById("closeResetModalBtn");
@@ -1759,8 +1786,12 @@ async function startScheduler() {
 
 /**
  * Saves the current configuration to the server.
+ * @param {Event} [event] - The event that triggered the save action.
  */
-async function saveConfig() {
+async function saveConfig(event) {
+  if (event) {
+    event.preventDefault();
+  }
   try {
     showNotification("Saving configuration...", "info");
     const formData = collectFormData();
@@ -1887,26 +1918,46 @@ async function executeReset() {
  * Displays a notification message to the user.
  * @param {string} message - The message to display.
  * @param {string} [type='info'] - The type of notification ('info', 'success', 'error', 'warning').
+ * @param {string|null} [details=null] - Optional details to be shown in a modal.
  */
-function showNotification(message, type = "info") {
-  const notification = document.getElementById("notification");
-  notification.textContent = message;
+function showNotification(message, type = "info", details = null) {
+    const notification = document.getElementById("notification");
+    notification.innerHTML = ""; // Clear previous content
 
-  // Uniform style is black and translucent, consistent with keys_status.js
-  notification.classList.remove("bg-danger-500");
-  notification.classList.add("bg-black");
-  notification.style.backgroundColor = "rgba(0,0,0,0.8)";
-  notification.style.color = "#fff";
+    const messageSpan = document.createElement("span");
+    messageSpan.textContent = message;
+    notification.appendChild(messageSpan);
 
-  // Apply transition effect
-  notification.style.opacity = "1";
-  notification.style.transform = "translate(-50%, 0)";
+    if (details) {
+        const detailsBtn = document.createElement("button");
+        detailsBtn.textContent = "Details";
+        detailsBtn.className = "ml-4 px-2 py-1 bg-gray-700 text-white rounded hover:bg-gray-600";
+        detailsBtn.onclick = () => {
+            const detailsModal = document.getElementById("notificationDetailsModal");
+            const detailsContent = document.getElementById("notificationDetailsContent");
+            if (detailsModal && detailsContent) {
+                detailsContent.textContent = details;
+                openModal(detailsModal);
+            }
+        };
+        notification.appendChild(detailsBtn);
+    }
 
-  // Set to disappear automatically
-  setTimeout(() => {
-    notification.style.opacity = "0";
-    notification.style.transform = "translate(-50%, 10px)";
-  }, 3000);
+    // Uniform style is black and translucent, consistent with keys_status.js
+    notification.classList.remove("bg-danger-500");
+    notification.classList.add("bg-black");
+    notification.style.backgroundColor = "rgba(0,0,0,0.8)";
+    notification.style.color = "#fff";
+
+    // Apply transition effect
+    notification.style.opacity = "1";
+    notification.style.transform = "translate(-50%, 0)";
+
+    // Set to disappear automatically
+    setTimeout(() => {
+        notification.style.opacity = "0";
+        notification.style.transform = "translate(-50%, 10px)";
+    }, 5000); // Increased timeout for notifications with details
 }
 
 /**
@@ -2173,3 +2224,42 @@ function handleModelSelection(selectedModelId) {
 }
 
 // -- End Model Helper Functions --
+
+function validateInput(input) {
+    const value = input.value;
+    const type = input.type;
+    const id = input.id;
+    let errorMessage = "";
+
+    if (type === "number") {
+        const min = parseFloat(input.min);
+        const max = parseFloat(input.max);
+        const floatValue = parseFloat(value);
+        if (isNaN(floatValue)) {
+            errorMessage = "Please enter a valid number.";
+        } else if (!isNaN(min) && floatValue < min) {
+            errorMessage = `Value must be at least ${min}.`;
+        } else if (!isNaN(max) && floatValue > max) {
+            errorMessage = `Value must not exceed ${max}.`;
+        }
+    } else if (type === "text") {
+        if (id === "BASE_URL" || id === "VERTEX_EXPRESS_BASE_URL" || id === "CLOUDFLARE_IMGBED_URL") {
+            if (value && !value.startsWith("http")) {
+                errorMessage = "Please enter a valid URL.";
+            }
+        }
+    }
+
+    const errorElement = document.getElementById(`${id}_error`);
+    if (errorElement) {
+        errorElement.textContent = errorMessage;
+        errorElement.style.display = errorMessage ? "block" : "none";
+    }
+}
+
+document.addEventListener("DOMContentLoaded", function () {
+    const inputs = document.querySelectorAll("#configForm input");
+    inputs.forEach(input => {
+        input.addEventListener("input", () => validateInput(input));
+    });
+});

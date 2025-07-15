@@ -183,6 +183,44 @@ class KeyManager:
             return ""
         return self.api_keys[0]
 
+    async def add_api_key(self, key: str):
+        """Add a new API key"""
+        if key not in self.api_keys:
+            self.api_keys.append(key)
+            self.key_cycle = cycle(self.api_keys)
+            async with self.failure_count_lock:
+                self.key_failure_counts[key] = 0
+            logger.info(f"Added API key: {key}")
+
+    async def add_vertex_api_key(self, key: str):
+        """Add a new Vertex API key"""
+        if key not in self.vertex_api_keys:
+            self.vertex_api_keys.append(key)
+            self.vertex_key_cycle = cycle(self.vertex_api_keys)
+            async with self.vertex_failure_count_lock:
+                self.vertex_key_failure_counts[key] = 0
+            logger.info(f"Added Vertex API key: {key}")
+
+    async def delete_api_key(self, key: str):
+        """Delete an API key"""
+        if key in self.api_keys:
+            self.api_keys.remove(key)
+            self.key_cycle = cycle(self.api_keys)
+            async with self.failure_count_lock:
+                if key in self.key_failure_counts:
+                    del self.key_failure_counts[key]
+            logger.info(f"Deleted API key: {key}")
+
+    async def delete_vertex_api_key(self, key: str):
+        """Delete a Vertex API key"""
+        if key in self.vertex_api_keys:
+            self.vertex_api_keys.remove(key)
+            self.vertex_key_cycle = cycle(self.vertex_api_keys)
+            async with self.vertex_failure_count_lock:
+                if key in self.vertex_key_failure_counts:
+                    del self.vertex_key_failure_counts[key]
+            logger.info(f"Deleted Vertex API key: {key}")
+
 
 _singleton_instance = None
 _singleton_lock = asyncio.Lock()
