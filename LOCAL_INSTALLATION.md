@@ -69,7 +69,9 @@ For effective API key rotation, it is recommended to create multiple Google Clou
 [http://localhost:8000](http://localhost:8000)
 1.  Navigate to the configuration page in the Gemini Gateway UI.
 2.  Add your generated API keys to the `gemini_keys` list.
-3.  Save the changes.
+3.  Save the changes
+
+![Add API Key to Gemini Gateway](set-up-instruction/add-key-to-app.png)
 
 ## Usage
 
